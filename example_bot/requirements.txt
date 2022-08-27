@@ -1,2 +1,1 @@
-python-dotenv
 git+https://github.com/etrotta/flask-discord-interactions@deta
