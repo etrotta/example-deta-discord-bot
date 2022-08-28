@@ -16,36 +16,77 @@ load_dotenv(pathlib.Path(__file__).parent.parent.parent / '.env')
 
 from example_bot.main import app
 
-from informal_testing.dummy_command import (
-    create_run_data,
-    read_run_data,
-    update_run_data,
-    delete_run_data,
-
-    creating_modal_response,
-    editing_modal_response,
+from informal_testing.dummy_commands.hello_world import hello
+from informal_testing.dummy_commands.crud import (
+    create_note,
+    read_note,
+    update_note,
+    delete_note,
+)
+from informal_testing.dummy_commands.adv_commands import (
+    set_note,
+    list_notes,
+    open_create_modal,
+    open_edit_modal,
+)
+from informal_testing.dummy_commands.modal import (
+    set_note_via_modal,
+)
+from informal_testing.dummy_commands.notes_autocomplete import (
+    autocomplete_get_note,
 )
 
-steps = [
-    create_run_data("test_data", "test description"),
-    read_run_data("test_data"),
-    update_run_data("test_data", "yooo edited"),
-    read_run_data("test_data"),
-    delete_run_data("test_data"),
-    read_run_data("test_data"),
 
-    creating_modal_response("test_modal", "hello this is coming from a modal :D"),
-    read_run_data("test_modal"),
-    editing_modal_response("test_modal", "modals can be used to edit too!"),
-    read_run_data("test_modal"),
+test_hello = [
+    hello(),
 ]
 
-with open("test_output.log", "w") as file:
-    for (user_interaction, interaction_type) in steps:
+test_crud = [
+    read_note("test_data"),
+    create_note("test_data", "test description"),
+    create_note("hello world", "good morning world"),
+    read_note("test_data"),
+    update_note("test_data", "yooo edited"),
+    read_note("test_data"),
+    delete_note("test_data"),
+    read_note("test_data"),
+]
+
+test_modal = [
+    open_create_modal(),
+    set_note_via_modal("test", "test123"),
+    read_note("test"),
+    open_edit_modal("test"),
+    set_note_via_modal("test", "abcxyz"),
+    read_note("test"),
+]
+
+test_adv = [
+    create_note("test_data", "test description"),
+    create_note("hello world", "good morning world"),
+    set_note("hello world", "yooo"),
+    set_note("goodbye world", "discord is cool"),
+    list_notes(),
+]
+
+test_autocomplete = [
+    create_note("test 1", "test one"),
+    create_note("test 2", "test two"),
+    create_note("test 3", "test three"),
+    list_notes(),
+    autocomplete_get_note("test"),
+]
+
+TEST = test_autocomplete
+
+with open(pathlib.Path(__file__).parent / "test_output.log", "w") as file:
+    for (user_interaction, interaction_type) in TEST:
         if interaction_type == "RUN_HANDLER":
             result = app.run_handler(user_interaction)
         elif interaction_type == "RUN_COMMAND":
             result = app.run_command(user_interaction)
+        elif interaction_type == "RUN_AUTOCOMPLETE":
+            result = app.run_autocomplete(user_interaction)
         else:
             raise ValueError(f"I have no idea what to do with {interaction_type=}."
             " Interaction dummy in question: \n{user_interaction}")
