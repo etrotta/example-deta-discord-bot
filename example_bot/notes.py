@@ -19,7 +19,7 @@ from deta_discord_interactions import (
 )
 from deta_discord_interactions.utils import Database
 
-# kwarg to pass to all Messages
+# kwarg to pass to all non-ephemeral Messages that might contain user inputted text
 no_mentions = {"allowed_mentions": {"parse": []}}
 
 blueprint = DiscordInteractionsBlueprint()
@@ -52,7 +52,7 @@ def add_note(ctx: Context, name: str, description: str):
 
 
 @notes.command("modal", "Opens a model for you to add or edit a note.")
-def note_modal(ctx: Context, name: Autocomplete(str) = ''):
+def note_modal(ctx: Context, name: Autocomplete[str] = ''):
     if name:
         user = database[ctx.author]
         user_notes = user.setdefault("notes", {})
@@ -83,7 +83,7 @@ def save_modal_note(ctx: Context):
 
 
 @notes.command("get", "Retrieve a note from collection.")
-def get_note(ctx: Context, name: Autocomplete(str), ephemeral: bool = True):
+def get_note(ctx: Context, name: Autocomplete[str], ephemeral: bool = True):
     user = database[ctx.author]
     return Message(
         user.setdefault("notes", {}).get(name, f"Note {name} not found"),
@@ -92,7 +92,7 @@ def get_note(ctx: Context, name: Autocomplete(str), ephemeral: bool = True):
     )
 
 
-@notes.command("list", "List and preview all notes from your collection. The response is not ephemeral, anyone can see it.",
+@notes.command("list", "List and preview all notes from your collection. If not ephemeral, anyone can see them.",
     annotations={
         "ephemeral": "Send an ephemeral message. Otherwise, uses a Select Menu if you have up to 25 notes.",
         "preview": "Include the start of each note."
@@ -113,7 +113,7 @@ def list_notes(ctx: Context, ephemeral: bool = False, preview: bool = True):
             else:
                 result = '```' + result + '```'
         else:
-            result = "```" + ", ".join(user_notes.keys()) + "```"
+            result = "```\n" + ", ".join(user_notes.keys()) + "```"
         return Message(result, ephemeral=ephemeral, **no_mentions)
     else:
         options = []
@@ -143,7 +143,7 @@ def show_full_note(ctx: Context):
 
 
 @notes.command("update")
-def update_note(ctx: Context, name: Autocomplete(str), description: str):
+def update_note(ctx: Context, name: Autocomplete[str], description: str):
     "Updates an existing note"
     user = database[ctx.author]
     user_notes = user.setdefault("notes", {})
@@ -157,7 +157,7 @@ def update_note(ctx: Context, name: Autocomplete(str), description: str):
 
 
 @notes.command("set")
-def set_note(ctx: Context, name: Autocomplete(str), description: str):
+def set_note(ctx: Context, name: Autocomplete[str], description: str):
     "Update an existing note or create a new one"
     user = database[ctx.author]
     user_notes = user.setdefault("notes", {})
@@ -170,7 +170,7 @@ def set_note(ctx: Context, name: Autocomplete(str), description: str):
 
 
 @notes.command("delete")
-def delete_note(ctx: Context, name: Autocomplete(str)):
+def delete_note(ctx: Context, name: Autocomplete[str]):
     "Delete an existing note"
     user = database[ctx.author]
     user_notes = user.setdefault("notes", {})
@@ -197,6 +197,8 @@ def note_name_autocomplete_handler(ctx, name: Option = None, **_):
             display = f"{key}: {description}"
             if len(display) > 100:
                 display = display[:97] + '...'
-            options.append(Choice(display, key))
-    options.sort(key=lambda option: option.value)
+            options.append(Choice(name=display, value=key))
+            # It will visually fill in the command with the `name` if you click it, 
+            # but it will send with the correct `value` even then
+    options.sort(key=lambda option: option.name)
     return options[:25]
