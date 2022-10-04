@@ -1,9 +1,11 @@
+from typing import Optional
 from deta_discord_interactions import DiscordInteractionsBlueprint
 from deta_discord_interactions import Message
 from deta_discord_interactions import Context
+from deta_discord_interactions import User
 from deta_discord_interactions import Embed, embed
 
-from deta_discord_interactions.utils.database import Database
+from deta_discord_interactions.utils.database import Database, AutoSyncRecord
 from deta_discord_interactions.utils.database import AutoSyncRecord
 
 
@@ -14,7 +16,7 @@ from deta_discord_interactions.utils.oauth import OAuthToken, OAuthInfo, request
 # be extra careful about how you manage user data and communicate it to your users.
 # You may also have to check relevant laws about how and in which ways you can manage user data,
 # specially Personally Identificable Information
-database = Database(name="oauth_users")
+database = Database(name="oauth_users", record_type=AutoSyncRecord)
 
 blueprint = DiscordInteractionsBlueprint()
 
@@ -25,16 +27,20 @@ oauth = blueprint.command_group(
 )
 
 
-def save_user_info(oauth_token: OAuthToken, ctx: Context):
+def save_user_info(oauth_token: Optional[OAuthToken], ctx: Context):
+    if oauth_token is None:  # the user declined the OAuth consent
+        return "Cancelled successfully"
     key = f'oauth_{ctx.author.id}'
-    info: OAuthInfo = oauth_token.get_user_data()
+    basic_info: OAuthInfo = oauth_token.get_auth_data()
+    user_info: User = oauth_token.get_user_data()
     record: AutoSyncRecord = database.get(key)
     with record:
         record["token"] = oauth_token
-        record["info"] = info
+        record["info"] = basic_info
+        record["user"] = user_info
         # record.setdefault("history", []).append([oauth_token, info])
     # Do NOT return a Message - this is what the end user will see in their browser
-    return f"Registered for user {info.user}"
+    return f"Registered for user {user_info.username}"
 
 
 @oauth.command("register")
@@ -54,6 +60,7 @@ def check_saved_info(ctx: Context):
 
     token: OAuthToken = record.get("token")
     info: OAuthInfo = record.get("info")
+    user: User = record.get("user")
     if info is None:
         return Message("You never registered or deleted your data after last registering.", ephemeral=True)
 
@@ -67,29 +74,29 @@ def check_saved_info(ctx: Context):
             value=token.expire_date.isoformat(),
         ),
     ]
-    if info.user is not None:
+    if user is not None:
         fields.append(
             embed.Field(
                 name="discord ID",
-                value=info.user.id,
+                value=user.id,
             ),
         )
         fields.append(
             embed.Field(
                 name="discord locale",
-                value=info.user.locale,
+                value=user.locale or "Unknown",
             ),
         )
-        if info.user.email is not None:
+        if user.email is not None:
             fields.append(
                 embed.Field(
                     name="email address",
-                    value=info.user.email,
+                    value=user.email,
                 )
             )
 
     return Message(
-        Embed(
+        embed=Embed(
             title="Saved Information",
             description="Some of the data granted by {info.user.username} to {info.application.name}",
             fields=fields,
@@ -104,10 +111,11 @@ def full_check(ctx: Context):
     # NOTE: The user themselves must NOT have access to their access_token
     record = database.get(f'oauth_{ctx.author.id}')
     info: OAuthInfo = record.get("info")
+    user: OAuthInfo = record.get("user")
     if info is None:
         return Message("We have no data about you", ephemeral=True)
     info.application = "redacted"
-    return Message(str(info), ephemeral=True)
+    return Message(str(info) + "\n" + str(user), ephemeral=True)
 
 
 @oauth.command("delete", annotations={

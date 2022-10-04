@@ -1,3 +1,4 @@
+from typing import Optional
 from deta_discord_interactions import DiscordInteractionsBlueprint
 from deta_discord_interactions import Message
 from deta_discord_interactions import Context
@@ -7,14 +8,14 @@ from deta_discord_interactions import Embed, embed
 
 from deta_discord_interactions.enums import PERMISSION
 
-from deta_discord_interactions.utils.database import Database
+from deta_discord_interactions.utils.database import Database, AutoSyncRecord
 from deta_discord_interactions.utils.database import Query, Field
 
 
 from deta_discord_interactions.utils.oauth import OAuthToken, Webhook, create_webhook
 
 
-database = Database(name="webhooks")
+database = Database(name="webhooks", record_type=AutoSyncRecord)
 
 blueprint = DiscordInteractionsBlueprint()
 
@@ -43,7 +44,9 @@ hooks = blueprint.command_group(
 )
 
 
-def save_webhook(oauth: OAuthToken, ctx: Context, internal_name: str):
+def save_webhook(oauth: Optional[OAuthToken], ctx: Context, internal_name: str):
+    if oauth is None:  # User declined the consent form
+        return f"Canceled creation of webhook {internal_name}"
     webhook: Webhook = oauth.webhook
     key = f'webhook_{ctx.author.id}_{internal_name}'
     with database[key] as record:
@@ -179,11 +182,11 @@ def send_scheduled_messages_command(ctx: Context):
             fields=[
                 embed.Field(
                     "Sent sucessfully",
-                    ", ".join(success),
+                    ", ".join(success) or "Zero",
                 ),
                 embed.Field(
                     "Failed to send",
-                    ", ".join(fails),
+                    ", ".join(fails) or "Zero",
                 ),
             ],
         ),
@@ -200,7 +203,7 @@ def send_scheduled_messages_command(ctx: Context):
 def webhook_name_autocomplete_handler(ctx, internal_name: Option = None, **_):
     if internal_name is None or not internal_name.focused:
         return []
-    key_prefix = f'webhook_{ctx.author.id}_{internal_name.value}'
+    key_prefix = f'webhook_{ctx.author.id}_{internal_name.value or ""}'
 
     options = []
     records = database.fetch(Query(Field("key").startswith(key_prefix)))
